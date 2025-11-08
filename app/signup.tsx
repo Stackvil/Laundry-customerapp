@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,9 +9,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function SignUpScreen() {
@@ -29,25 +30,118 @@ export default function SignUpScreen() {
   const mobileRef = useRef<TextInput>(null);
   const passwordRef = useRef<TextInput>(null);
   const addressRef = useRef<TextInput>(null);
+  const isNavigatingRef = useRef(false);
+  const isMountedRef = useRef(true);
 
-  const handleSignUp = async () => {
+  // Reset navigation flag when screen comes into focus (but don't clear form)
+  useFocusEffect(
+    useCallback(() => {
+      isNavigatingRef.current = false;
+      isMountedRef.current = true;
+      return () => {
+        isMountedRef.current = false;
+      };
+    }, [])
+  );
+
+  const handleSignUp = useCallback(async () => {
+    // Prevent multiple simultaneous calls
+    if (loading || isNavigatingRef.current) {
+      return;
+    }
+
+    // Validate all fields are filled
     if (!name || !email || !mobile || !password || !address) {
       Alert.alert('Error', 'Please fill all fields');
       return;
     }
 
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
+    // Basic password validation
+    if (password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters');
+      return;
+    }
+
+    // Basic mobile validation
+    if (mobile.length < 10) {
+      Alert.alert('Error', 'Please enter a valid mobile number');
+      return;
+    }
+
     setLoading(true);
     try {
-      // Make sure your signUp function in AuthContext accepts name as a parameter
-      await signUp(name, email, password, mobile, address);
-      Alert.alert('Success', 'Account created successfully!');
-      router.replace('/');
+      // Call signUp with trimmed and validated data
+      await signUp(
+        name.trim(),
+        email.trim().toLowerCase(),
+        password,
+        mobile.trim(),
+        address.trim()
+      );
+      
+      // Mark as navigating to prevent re-renders
+      isNavigatingRef.current = true;
+      isMountedRef.current = false;
+      
+      // Navigate immediately - don't update any state to prevent blinking
+      // The component will unmount after navigation completes
+      router.replace('/(tabs)/home');
     } catch (error: any) {
-      Alert.alert('Signup Error', error.message);
-    } finally {
-      setLoading(false);
+      // Only update state if component is still mounted
+      if (isMountedRef.current) {
+        isNavigatingRef.current = false;
+        setLoading(false);
+        
+        // Safely extract error message without JSON parsing
+        let errorMessage = 'Signup failed. Please try again.';
+        
+        if (error) {
+          // Handle error messages
+          if (error.message && typeof error.message === 'string') {
+            errorMessage = error.message;
+          } 
+          // Handle other error types
+          else if (typeof error === 'string') {
+            errorMessage = error;
+          } else if (error.error_description) {
+            errorMessage = error.error_description;
+          } else if (error.error && typeof error.error === 'string') {
+            errorMessage = error.error;
+          } else if (error.originalError) {
+            // If there's an original error wrapped
+            errorMessage = error.message || 'Authentication error occurred';
+          } else {
+            // If error is an object, try to get a meaningful message
+            try {
+              const errorStr = JSON.stringify(error);
+              if (errorStr.length > 200) {
+                errorMessage = 'An error occurred during signup. Please try again.';
+              } else {
+                errorMessage = errorStr;
+              }
+            } catch {
+              errorMessage = 'An unknown error occurred';
+            }
+          }
+        }
+        
+        console.error('Signup error details:', {
+          message: error?.message,
+          status: error?.status,
+          code: error?.code,
+          fullError: error,
+        });
+        Alert.alert('Signup Error', errorMessage);
+      }
     }
-  };
+  }, [name, email, mobile, password, address, loading, signUp, router]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -127,11 +221,16 @@ export default function SignUpScreen() {
 
           {/* Sign Up Button */}
           <TouchableOpacity
-            style={[styles.button, loading && { backgroundColor: '#999' }]}
+            style={loading ? styles.buttonDisabled : styles.button}
             onPress={handleSignUp}
             disabled={loading}
+            activeOpacity={0.7}
           >
-            <Text style={styles.buttonText}>{loading ? 'Signing Up...' : 'Sign Up'}</Text>
+            {loading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.buttonText}>Sign Up</Text>
+            )}
           </TouchableOpacity>
 
           {/* Switch to Login */}
@@ -174,7 +273,18 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderRadius: 8,
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 12,
+    minHeight: 52,
+  },
+  buttonDisabled: {
+    backgroundColor: '#999',
+    paddingVertical: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    minHeight: 52,
   },
   buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   switchText: { textAlign: 'center', color: '#070707', marginTop: 12, fontSize: 14 },

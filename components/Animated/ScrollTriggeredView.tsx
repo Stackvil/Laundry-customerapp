@@ -9,12 +9,13 @@ import Animated, {
   interpolate,
   Extrapolate,
   useAnimatedScrollHandler,
+  SharedValue,
 } from 'react-native-reanimated';
 
 interface ScrollTriggeredViewProps extends ViewProps {
   children: React.ReactNode;
   index: number;
-  scrollY: Animated.SharedValue<number>;
+  scrollY: SharedValue<number>;
   itemHeight?: number;
   animation?: 'fadeInUp' | 'fadeInLeft' | 'fadeInRight' | 'scaleIn' | 'slideInUp';
 }

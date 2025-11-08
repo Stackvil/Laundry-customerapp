@@ -41,8 +41,21 @@ export default function AccountSettingsScreen() {
     try {
       const savedProfile = await AsyncStorage.getItem('userProfile');
       if (savedProfile) {
-        const profile = JSON.parse(savedProfile);
-        setProfileData(profile);
+        // Validate that it's valid JSON before parsing
+        if (savedProfile.trim().startsWith('{') || savedProfile.trim().startsWith('[')) {
+          try {
+            const profile = JSON.parse(savedProfile);
+            setProfileData(profile);
+          } catch (parseError) {
+            console.error('Invalid JSON in userProfile:', parseError);
+            // Clear invalid data
+            await AsyncStorage.removeItem('userProfile');
+          }
+        } else {
+          // If it's not JSON, clear it
+          console.warn('userProfile is not valid JSON, clearing...');
+          await AsyncStorage.removeItem('userProfile');
+        }
       }
     } catch (error) {
       console.error('Error loading profile data:', error);

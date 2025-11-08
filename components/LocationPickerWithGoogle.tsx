@@ -88,8 +88,6 @@ export default function LocationPickerWithGoogle({ onSelectLocation }: Props) {
       <GooglePlacesAutocomplete
         placeholder='Search for pickup location'
         minLength={2}
-        autoFocus={false}
-        returnKeyType={'search'}
         listViewDisplayed='auto'
         fetchDetails={true}
         renderDescription={(row) => row.description}

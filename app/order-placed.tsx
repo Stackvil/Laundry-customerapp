@@ -12,25 +12,40 @@ export default function OrderPlacedScreen() {
   const params = useLocalSearchParams();
   const { user } = useAuth();
 
-  const cart = params.cart ? JSON.parse(params.cart as string) : [];
+  // Safely parse route params with error handling
+  const parseJsonParam = (param: string | string[] | undefined, fallback: any) => {
+    if (!param || typeof param !== 'string') return fallback;
+    try {
+      if (param.trim().startsWith('{') || param.trim().startsWith('[')) {
+        return JSON.parse(param);
+      }
+      return fallback;
+    } catch (error) {
+      console.error('Error parsing route param:', error);
+      return fallback;
+    }
+  };
+
+  const cart = parseJsonParam(params.cart, []);
   const totalAmount = Number(params.totalAmount || 0);
   const mobile = params.mobile as string;
   const address = params.address as string;
   const pickupAddress = params.pickupAddress as string;
-  const pickupCoordinates = params.pickupCoordinates ? JSON.parse(params.pickupCoordinates as string) : null;
-  const images = params.images ? JSON.parse(params.images as string) : [];
+  const pickupCoordinates = parseJsonParam(params.pickupCoordinates, null);
+  const images = parseJsonParam(params.images, []);
   const videoUri = params.videoUri as string || '';
   const uploadType = params.uploadType as string || 'images';
-  const service = params.selectedService ? JSON.parse(params.selectedService as string) : { name: 'Laundry' };
-  const serviceCenter = params.serviceCenter
-    ? JSON.parse(params.serviceCenter as string)
-    : {
-        id: '',
-        name: 'Default Service Center',
-        address: '123 Street, City',
-        distance: '2.3 km',
-        imageUrl: 'https://via.placeholder.com/80',
-      };
+  const service = parseJsonParam(params.selectedService, { name: 'Laundry' });
+  const serviceCenter = parseJsonParam(
+    params.serviceCenter,
+    {
+      id: '',
+      name: 'Default Service Center',
+      address: '123 Street, City',
+      distance: '2.3 km',
+      imageUrl: 'https://via.placeholder.com/80',
+    }
+  );
 
   useEffect(() => {
     const saveOrder = async () => {
@@ -49,13 +64,24 @@ export default function OrderPlacedScreen() {
           cartItems: cart,
           totalAmount,
           date: new Date().toISOString(),
-          status: 'Order Placed',
+          status: 'Pending',
           service,
           serviceCenter,
         };
 
         const existing = await AsyncStorage.getItem('orders');
-        const parsed = existing ? JSON.parse(existing) : [];
+        let parsed: any[] = [];
+        if (existing && existing.trim().startsWith('[')) {
+          try {
+            parsed = JSON.parse(existing);
+            if (!Array.isArray(parsed)) {
+              parsed = [];
+            }
+          } catch (parseError) {
+            console.error('Invalid JSON in orders:', parseError);
+            parsed = [];
+          }
+        }
         const updated = [newOrder, ...parsed];
 
         await AsyncStorage.setItem('orders', JSON.stringify(updated));

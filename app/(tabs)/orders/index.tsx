@@ -4,7 +4,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Package, RefreshCw } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useIsFocused } from '@react-navigation/native';
 import { useAuth } from '@/contexts/AuthContext';
 import { AnimatedView, AnimatedButton, StaggeredListItem, PageTransition } from '@/components/Animated';
 
@@ -30,7 +29,6 @@ const getStatusColor = (status: string) => {
 
 export default function OrdersScreen() {
   const router = useRouter();
-  const isFocused = useIsFocused();
   const { user } = useAuth(); // ✅ Logged-in user info
   const [orders, setOrders] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -42,21 +40,36 @@ export default function OrdersScreen() {
       console.log('Raw stored data:', stored);
       
       if (stored && stored !== 'null' && stored !== 'undefined') {
-        const parsed = JSON.parse(stored);
-        console.log('Parsed orders count:', parsed?.length || 0);
-        console.log('Parsed orders:', parsed);
-        
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const sortedOrders = parsed.sort((a, b) => {
-            const dateA = new Date(a.date || a.createdAt || 0).getTime();
-            const dateB = new Date(b.date || b.createdAt || 0).getTime();
-            return dateB - dateA;
-          });
-          setOrders(sortedOrders);
-          console.log('Orders set successfully:', sortedOrders.length);
+        // Validate that it's valid JSON before parsing
+        if (stored.trim().startsWith('[') || stored.trim().startsWith('{')) {
+          try {
+            const parsed = JSON.parse(stored);
+            console.log('Parsed orders count:', parsed?.length || 0);
+            console.log('Parsed orders:', parsed);
+            
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              const sortedOrders = parsed.sort((a, b) => {
+                const dateA = new Date(a.date || a.createdAt || 0).getTime();
+                const dateB = new Date(b.date || b.createdAt || 0).getTime();
+                return dateB - dateA;
+              });
+              setOrders(sortedOrders);
+              console.log('Orders set successfully:', sortedOrders.length);
+            } else {
+              setOrders([]);
+              console.log('No valid orders found');
+            }
+          } catch (parseError) {
+            console.error('Invalid JSON in orders:', parseError);
+            // Clear invalid data
+            await AsyncStorage.removeItem('orders');
+            setOrders([]);
+          }
         } else {
+          // If it's not JSON, clear it
+          console.warn('orders is not valid JSON, clearing...');
+          await AsyncStorage.removeItem('orders');
           setOrders([]);
-          console.log('No valid orders found');
         }
       } else {
         setOrders([]);
@@ -75,27 +88,8 @@ export default function OrdersScreen() {
   };
 
   useEffect(() => {
-    fetchOrders(); // Always fetch on mount
+    fetchOrders(); // Fetch only on mount
   }, []);
-
-  useEffect(() => {
-    if (isFocused) {
-      console.log('Orders screen focused, refreshing...');
-      // Add a small delay to ensure any pending saves are complete
-      setTimeout(() => {
-        fetchOrders();
-      }, 100);
-    }
-  }, [isFocused]);
-
-  // Also refresh when component mounts (in case user navigates directly)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchOrders();
-    }, 2000); // Check every 2 seconds when screen is focused
-
-    return () => clearInterval(interval);
-  }, [isFocused]);
 
   return (
     <PageTransition>

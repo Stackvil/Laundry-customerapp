@@ -33,7 +33,7 @@ export default function CustomLocationPicker({ onSelectLocation }: Props) {
   const [loading, setLoading] = useState(false);
   const [currentLocation, setCurrentLocation] = useState<SelectedLocation | null>(null);
   const [recent, setRecent] = useState<SelectedLocation[]>([]);
-  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     loadRecent();

@@ -1,85 +1,33 @@
-// app/(tabs)/home/shop/services/[shopId].tsx
-import React, { useState, useMemo } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Image,
-  TouchableOpacity,
-  Alert,
-} from 'react-native';
+// app/(tabs)/home/shop/[id].tsx
+import React from 'react';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Minus, Plus } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { mockServices, mockShops } from '@/data/mockData';
-import { useAuth } from '@/contexts/AuthContext';
-import { PageTransition } from '@/components/Animated';
+import { ArrowLeft } from 'lucide-react-native';
+import { mockShops, serviceCategories } from '@/data/mockData';
+import { PageTransition, AnimatedView, AnimatedButton, StaggeredListItem } from '@/components/Animated';
 
-export default function LaundryServiceScreen() {
-  const params = useLocalSearchParams<{ shopId?: string; selectedService?: string }>();
+export default function ServiceCenterServicesScreen() {
+  const { id, shopId } = useLocalSearchParams<{
+    id?: string;
+    shopId?: string;
+  }>();
+
   const router = useRouter();
-  const { user } = useAuth();
+  const selectedShopId = shopId || id || '';
+  const selectedShop = mockShops.find((s) => s.id === selectedShopId);
 
-  const shopId = (params.shopId ?? '') as string;
-  const selectedService = params.selectedService ? JSON.parse(params.selectedService) : null;
-  const shop = mockShops.find((s) => s.id === shopId) ?? null;
-
-  const [cart, setCart] = useState<Array<any>>([]);
-
-  const updateQuantity = (service: any, delta: number) => {
-    setCart((prev) => {
-      const existing = prev.find((i) => i.id === service.id);
-      if (existing) {
-        const newQty = existing.quantity + delta;
-        if (newQty <= 0) return prev.filter((i) => i.id !== service.id);
-        return prev.map((i) => (i.id === service.id ? { ...i, quantity: newQty } : i));
-      } else if (delta > 0) {
-        return [...prev, { id: service.id, name: service.name, price: service.price, quantity: 1 }];
-      }
-      return prev;
-    });
-  };
-
-  const getQty = (id: string) => cart.find((i) => i.id === id)?.quantity || 0;
-
-  const totalAmount = useMemo(
-    () => cart.reduce((s, i) => s + i.price * i.quantity, 0),
-    [cart]
-  );
-
-  const handleConfirm = () => {
-    if (cart.length === 0) {
-      Alert.alert('Empty Cart', 'Please add items before proceeding.');
-      return;
-    }
-    if (!shop) {
-      Alert.alert('Error', 'Shop details not found.');
-      return;
-    }
-    if (!user) {
-      Alert.alert('Account Required', 'Please sign in or create an account to continue.', [
-        { text: 'Sign In', onPress: () => router.push('/login') },
-        { text: 'Sign Up', onPress: () => router.push('/signup') },
-        { text: 'Cancel', style: 'cancel' },
-      ]);
-      return;
-    }
-
+  const handleServiceSelect = (service: any) => {
     router.push({
-      pathname: '/confirm-order',
+      pathname: '/home/shop/services/[id]',
       params: {
-        cart: JSON.stringify(
-          cart.map((i) => ({
-            serviceId: i.id,
-            serviceName: i.name,
-            quantity: i.quantity,
-            price: i.price,
-          }))
-        ),
-        totalAmount: totalAmount.toString(),
-        selectedServiceCenter: JSON.stringify(shop),
-        selectedService: JSON.stringify(selectedService),
+        id: service.id,
+        shopId: selectedShopId,
+        serviceId: service.id,
+        serviceName: service.name,
+        serviceImage: service.imageUrl,
+        selectedService: JSON.stringify(service),
       },
     });
   };
@@ -88,77 +36,72 @@ export default function LaundryServiceScreen() {
     <PageTransition>
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <ArrowLeft size={22} color="#000" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>
-            {selectedService?.name ?? 'Laundry Services'}
-          </Text>
+          <Text style={styles.headerTitle}>Services</Text>
         </View>
 
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-        {shop ? (
-          <View style={styles.shopCard}>
-            <Image source={{ uri: shop.imageUrl }} style={styles.shopImage} />
+        {/* Service Center Info */}
+        {selectedShop && (
+          <LinearGradient
+            colors={['#6366f1', '#8b5cf6', '#a855f7']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.shopInfoCard}
+          >
+            <Image source={{ uri: selectedShop.imageUrl }} style={styles.shopImage} />
             <View style={styles.shopInfo}>
-              <Text style={styles.shopName}>{shop.name}</Text>
-              {shop.address && <Text style={styles.shopAddress}>{shop.address}</Text>}
-              {selectedService?.name && (
-                <Text style={styles.serviceType}>Selected: {selectedService.name}</Text>
-              )}
+              <Text style={styles.shopName}>{selectedShop.name}</Text>
+              <Text style={styles.shopAddress}>{selectedShop.address}</Text>
+              <View style={styles.distanceBadge}>
+                <Text style={styles.shopDistance}>{selectedShop.distance}</Text>
+              </View>
             </View>
-          </View>
-        ) : (
-          <Text style={{ textAlign: 'center', marginTop: 20, color: '#666' }}>
-            Shop not found.
-          </Text>
+          </LinearGradient>
         )}
 
-        {mockServices.map((service) => {
-          const qty = getQty(service.id);
-          return (
-            <View key={service.id} style={styles.serviceCard}>
-              <Image source={{ uri: service.imageUrl }} style={styles.serviceImage} />
-              <View style={styles.serviceInfo}>
-                <Text style={styles.serviceName}>{service.name}</Text>
-                <Text style={styles.servicePrice}>₹{service.price.toFixed(2)}</Text>
-              </View>
-              <View style={styles.qtyControls}>
-                {qty > 0 && (
-                  <TouchableOpacity
-                    style={styles.qtyBtn}
-                    onPress={() => updateQuantity(service, -1)}
-                  >
-                    <Minus size={14} color="#fff" />
-                  </TouchableOpacity>
-                )}
-                {qty > 0 && <Text style={styles.qtyText}>{qty}</Text>}
-                <TouchableOpacity
-                  style={styles.qtyBtn}
-                  onPress={() => updateQuantity(service, 1)}
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <AnimatedView animation="fadeInUp" delay={100}>
+            <Text style={styles.sectionTitle}>Available Services</Text>
+          </AnimatedView>
+          
+          <View style={styles.servicesGrid}>
+            {serviceCategories.map((service, index) => (
+              <StaggeredListItem 
+                key={service.id} 
+                index={index} 
+                staggerDelay={80}
+                style={{ width: '48%' }}
+              >
+                <AnimatedButton
+                  style={styles.serviceCard}
+                  scaleValue={0.95}
+                  onPress={() => handleServiceSelect(service)}
                 >
-                  <Plus size={14} color="#fff" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          );
-        })}
-      </ScrollView>
-
-      {cart.length > 0 && (
-        <View style={styles.footer}>
-          <View style={styles.totalContainer}>
-            <Text style={styles.totalText}>₹{totalAmount.toFixed(2)}</Text>
-            <Text style={{ color: '#666', fontSize: 13 }}>
-              {cart.length} item{cart.length > 1 ? 's' : ''} selected
-            </Text>
+                  <LinearGradient
+                    colors={['#ffffff', '#f8fafc', '#f1f5f9']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.serviceCardGradient}
+                  >
+                    <View style={styles.serviceImageContainer}>
+                      <Image source={{ uri: service.imageUrl }} style={styles.serviceImage} />
+                      <LinearGradient
+                        colors={['transparent', 'rgba(99, 102, 241, 0.3)']}
+                        style={styles.serviceImageOverlay}
+                      />
+                    </View>
+                    <View style={styles.serviceNameContainer}>
+                      <Text style={styles.serviceName}>{service.name}</Text>
+                    </View>
+                  </LinearGradient>
+                </AnimatedButton>
+              </StaggeredListItem>
+            ))}
           </View>
-          <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirm}>
-            <Text style={styles.confirmText}>Preview Order</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
     </PageTransition>
   );
 }
@@ -168,67 +111,112 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
   },
-  headerTitle: { fontSize: 16, fontWeight: '700', marginLeft: 10, color: '#000' },
-  scrollContent: { paddingBottom: 120, padding: 12 },
-  shopCard: {
+  backButton: { marginRight: 10 },
+  headerTitle: { fontSize: 18, fontWeight: '700', color: '#000' },
+  shopInfoCard: {
     flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    margin: 6,
-    padding: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#f3f3f3',
+    padding: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+    borderRadius: 16,
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  shopImage: { width: 64, height: 64, borderRadius: 8 },
-  shopInfo: { marginLeft: 10, flex: 1 },
-  shopName: { fontSize: 16, fontWeight: '700' },
-  shopAddress: { color: '#666', marginTop: 4 },
-  serviceType: { marginTop: 6, fontWeight: '600', color: '#333' },
+  shopImage: { 
+    width: 64, 
+    height: 64, 
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  shopInfo: { flex: 1, marginLeft: 12, justifyContent: 'center' },
+  shopName: { 
+    fontSize: 18, 
+    fontWeight: '700', 
+    color: '#ffffff', 
+    marginBottom: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  shopAddress: { 
+    fontSize: 13, 
+    color: 'rgba(255, 255, 255, 0.9)', 
+    marginBottom: 6,
+  },
+  distanceBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  shopDistance: { 
+    fontSize: 11, 
+    color: '#ffffff', 
+    fontWeight: '600',
+  },
+  scrollContent: { padding: 16, paddingBottom: 100 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', marginBottom: 16, color: '#000' },
+  servicesGrid: { 
+    flexDirection: 'row', 
+    flexWrap: 'wrap', 
+    justifyContent: 'space-between',
+    gap: 12,
+  },
   serviceCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    marginVertical: 8,
-    padding: 12,
-    borderRadius: 8,
+    width: '100%',
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 12,
+    shadowColor: '#6366f1',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  serviceCardGradient: {
+    borderRadius: 16,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#f4f4f4',
+    borderColor: 'rgba(99, 102, 241, 0.1)',
   },
-  serviceImage: { width: 56, height: 56, borderRadius: 8 },
-  serviceInfo: { flex: 1, marginLeft: 12 },
-  serviceName: { fontSize: 15, fontWeight: '600' },
-  servicePrice: { marginTop: 6, color: '#666' },
-  qtyControls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  qtyBtn: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#000',
-    justifyContent: 'center',
-    alignItems: 'center',
+  serviceImageContainer: {
+    position: 'relative',
+    width: '100%',
+    height: 120,
   },
-  qtyText: { fontSize: 15, marginHorizontal: 6, fontWeight: '600' },
-  footer: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
+  serviceImage: { 
+    width: '100%', 
+    height: 120,
+    resizeMode: 'cover',
+  },
+  serviceImageOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 40,
+  },
+  serviceNameContainer: {
     padding: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#eee',
+    backgroundColor: 'transparent',
   },
-  totalContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  totalText: { fontSize: 18, fontWeight: '700' },
-  confirmBtn: {
-    flex: 1,
-    backgroundColor: '#000',
-    padding: 12,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
+  serviceName: { 
+    fontSize: 14, 
+    fontWeight: '700', 
+    textAlign: 'center', 
+    color: '#1e293b',
   },
-  confirmText: { color: '#fff', fontWeight: '700' },
 });

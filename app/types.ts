@@ -1,8 +1,7 @@
 // types.ts
-import { User } from '@supabase/supabase-js';
 
 export interface AppUser {
-  id?: string;          // ✅ add this line
+  id?: string;
   name?: string;
   email?: string;
   mobile?: string;

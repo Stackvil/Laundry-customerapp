@@ -29,9 +29,23 @@ export default function ConfirmOrderScreen() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const cartItems = cart ? JSON.parse(cart as string) : [];
-  const serviceCenter = selectedServiceCenter ? JSON.parse(selectedServiceCenter as string) : null;
-  const service = selectedService ? JSON.parse(selectedService as string) : null;
+  // Safely parse route params with error handling
+  const parseJsonParam = (param: string | string[] | undefined, fallback: any) => {
+    if (!param || typeof param !== 'string') return fallback;
+    try {
+      if (param.trim().startsWith('{') || param.trim().startsWith('[')) {
+        return JSON.parse(param);
+      }
+      return fallback;
+    } catch (error) {
+      console.error('Error parsing route param:', error);
+      return fallback;
+    }
+  };
+
+  const cartItems = parseJsonParam(cart, []);
+  const serviceCenter = parseJsonParam(selectedServiceCenter, null);
+  const service = parseJsonParam(selectedService, null);
 
   const [name, setName] = useState((user as AppUser)?.name || '');
   const [mobile, setMobile] = useState((user as AppUser)?.mobile || '');
@@ -53,14 +67,28 @@ export default function ConfirmOrderScreen() {
       try {
         const savedLocation = await AsyncStorage.getItem('selectedPickupLocation');
         if (savedLocation) {
-          const location = JSON.parse(savedLocation);
-          setPickupAddress(location.address);
-          setPickupCoordinates({
-            latitude: location.latitude,
-            longitude: location.longitude,
-          });
-          // Clear the saved location after reading it
-          await AsyncStorage.removeItem('selectedPickupLocation');
+          // Validate that it's valid JSON before parsing
+          if (savedLocation.trim().startsWith('{') || savedLocation.trim().startsWith('[')) {
+            try {
+              const location = JSON.parse(savedLocation);
+              if (location && location.address && location.latitude && location.longitude) {
+                setPickupAddress(location.address);
+                setPickupCoordinates({
+                  latitude: location.latitude,
+                  longitude: location.longitude,
+                });
+              }
+              // Clear the saved location after reading it
+              await AsyncStorage.removeItem('selectedPickupLocation');
+            } catch (parseError) {
+              console.error('Invalid JSON in selectedPickupLocation:', parseError);
+              await AsyncStorage.removeItem('selectedPickupLocation');
+            }
+          } else {
+            // If it's not JSON, clear it
+            console.warn('selectedPickupLocation is not valid JSON, clearing...');
+            await AsyncStorage.removeItem('selectedPickupLocation');
+          }
         }
       } catch (error) {
         console.error('Error reading selected location:', error);

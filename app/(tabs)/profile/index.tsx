@@ -44,12 +44,26 @@ export default function ProfileScreen() {
     try {
       const savedProfile = await AsyncStorage.getItem('userProfile');
       if (savedProfile) {
-        const profile = JSON.parse(savedProfile);
-        setProfileData(profile);
+        // Validate that it's valid JSON before parsing
+        if (savedProfile.trim().startsWith('{') || savedProfile.trim().startsWith('[')) {
+          try {
+            const profile = JSON.parse(savedProfile);
+            setProfileData(profile);
+          } catch (parseError) {
+            console.error('Invalid JSON in userProfile:', parseError);
+            // Clear invalid data
+            await AsyncStorage.removeItem('userProfile');
+          }
+        } else {
+          // If it's not JSON, clear it
+          console.warn('userProfile is not valid JSON, clearing...');
+          await AsyncStorage.removeItem('userProfile');
+        }
       }
       
       const savedImage = await AsyncStorage.getItem('profileImage');
       if (savedImage) {
+        // profileImage is stored as plain string, not JSON
         setProfileImage(savedImage);
       }
     } catch (error) {
@@ -61,7 +75,26 @@ export default function ProfileScreen() {
     try {
       const savedAddresses = await AsyncStorage.getItem('userAddresses');
       if (savedAddresses) {
-        setAddresses(JSON.parse(savedAddresses));
+        // Validate that it's valid JSON before parsing
+        if (savedAddresses.trim().startsWith('[') || savedAddresses.trim().startsWith('{')) {
+          try {
+            const parsed = JSON.parse(savedAddresses);
+            if (Array.isArray(parsed)) {
+              setAddresses(parsed);
+            } else {
+              console.warn('userAddresses is not an array, clearing...');
+              await AsyncStorage.removeItem('userAddresses');
+            }
+          } catch (parseError) {
+            console.error('Invalid JSON in userAddresses:', parseError);
+            // Clear invalid data
+            await AsyncStorage.removeItem('userAddresses');
+          }
+        } else {
+          // If it's not JSON, clear it
+          console.warn('userAddresses is not valid JSON, clearing...');
+          await AsyncStorage.removeItem('userAddresses');
+        }
       } else if (user?.address) {
         // Add signup address as default if no saved addresses
         const signupAddress = {
